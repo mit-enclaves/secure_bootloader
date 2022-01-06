@@ -5,6 +5,7 @@
 #include <config.h>
 #include <string.h>
 
+#include "sm_keys.h"
 #include "platform_config.h"
 
 // Prerequisites
@@ -40,7 +41,7 @@ static inline void platform_finalize_secure_boot() {
 
 __attribute__ (( noreturn )) static inline void platform_panic(char* message) {
   // This is the place to print a commitment to the derived keys on a RISCY platform.
-  void (*soft_reboot)(void) = BOOT_ROM_BASE;
+  void (*soft_reboot)(void) = (void(*)(void)) BOOT_ROM_BASE;
   soft_reboot();
 }
 
