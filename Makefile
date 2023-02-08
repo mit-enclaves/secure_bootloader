@@ -45,13 +45,18 @@ $(BUILD_DIR):
 	# create a build directory if one does not exist
 	mkdir -p $(BUILD_DIR)
 
+#DEBUG_FLAGS := -ggdb3
+CFLAGS := -march=rv64g -mcmodel=medany -mabi=lp64 -fno-common -fno-tree-loop-distribute-patterns -std=gnu11 -Wall -Os $(DEBUG_FLAGS) -fvisibility=hidden -nostartfiles -nostdlib -static
+
+#CFLAGS := -march=rv64g -mabi=lp64 -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles
+
 $(SB_ELF): $(BUILD_DIR) $(SB_LDS) $(SB_SRCS)
 	# compile the secure bootloader ELF
-	cd $(BUILD_DIR) && $(CC) -T $(SB_LDS) -I $(SRC_DIR) -I $(SRC_DIR)/clib -I $(CRYPTO) -I $(PLATFORM) -march=rv64g -mabi=lp64 -nostdlib -nostartfiles -fno-common -std=gnu11 -static -fPIC -g -O2 -Wall $(SB_SRCS) -o $(SB_ELF)
+	cd $(BUILD_DIR) && $(CC) -T $(SB_LDS) -I $(SRC_DIR) -I $(SRC_DIR)/clib -I $(CRYPTO) -I $(PLATFORM) $(CFLAGS) $(SB_SRCS) -o $(SB_ELF)
 
 $(SB_BIN): $(SB_ELF)
 # extract a binary image from the ELF
-	cd $(BUILD_DIR) && $(OBJCOPY) -O binary --only-section=.rom  $(SB_ELF) $(SB_BIN)
+	cd $(BUILD_DIR) && $(OBJCOPY) -O binary --only-section=.text  $(SB_ELF) $(SB_BIN)
 
 # Export target shorthand
 .PHONY: secure_bootloader
@@ -60,3 +65,7 @@ secure_bootloader: $(SB_BIN)
 .PHONY: secure_bootloader_test
 secure_bootloader_test: check_env $(SB_BIN)
 	$(SANCTUM_QEMU) -machine sanctum -m 2G -nographic -bios $(SB_BIN) -s -S
+
+.PHONY: clean
+clean:
+	rm -rf $(SB_DIR)/build

@@ -14,10 +14,10 @@ reset_vector:
   # 2. Hart 0 sanitizes DRAM to destroy data from previous boot
   li a0, RAM_BASE
   li a1, (RAM_BASE+RAM_SIZE)
-  call platform_clear_algined_memory
+  //call platform_clear_algined_memory
 
   # 3. Hart 0 loads a boot image into memory
-  call platform_load_boot_image
+  //call platform_load_boot_image
 
   # 4. Hart 0 sets a stack pointer; can now call C functions
   li sp, STACK_TOP
@@ -56,6 +56,7 @@ boot_sw_image:
   call platform_clean_core_state
 
   # 11 Transfer control to boot image
-  la ra, measured_binary
+  la a1, _end
+  li ra, SM_ADDR
   jr ra
   # ---- (unreachable)

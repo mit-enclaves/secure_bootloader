@@ -35,6 +35,9 @@
   - void sign(void * in_data, size_t in_data_size, public_key_t * in_public_key, secret_key_t * in_secret_key, signature_t * out_signature)
 */
 
+// Boot image header is located at the begining of the SM state
+boot_image_header_t *boot_image_header = (boot_image_header_t *)SM_STATE_ADDR;
+
 void bootloader() {
   // Prerequisite: platform:
   // - loads the untrusted software into memory
@@ -46,15 +49,8 @@ void bootloader() {
   // measurement. The measured segment is contiguous (in an enclave-capable
   // system, it is the precisely the security monitor)
 
-  // Validate measured software size; It should not exceed the remaining size of memory
-  if (boot_image_header.software_measured_bytes > ((uint64_t)&(boot_image_header.software_measured_binary) - RAM_BASE + RAM_SIZE)){
-    platform_panic("bad sw size");
-  }
-
   // Perform the measurement
-  hash( &(boot_image_header.software_measured_binary),
-    boot_image_header.software_measured_bytes,
-    &(boot_image_header.software_measurement) );
+  hash((void *) SM_ADDR, SM_LEN, &(boot_image_header->software_measurement) );
 
   // 2.a). Derive the device key seed from device secret
   // (SK_D is seeded with the device secret directly)
@@ -73,7 +69,7 @@ void bootloader() {
   hash_context_t hash_scratchpad;
   hash_init(&hash_scratchpad);
   hash_extend( &hash_scratchpad, &device_key_seed, sizeof(device_key_seed) );
-  hash_extend( &hash_scratchpad, &(boot_image_header.software_measurement), sizeof(boot_image_header.software_measurement) );
+  hash_extend( &hash_scratchpad, &(boot_image_header->software_measurement), sizeof(boot_image_header->software_measurement) );
   hash_finalize( &hash_scratchpad, (hash_t *)(&hash_out) );
 
   for(int i=0; i < LENGTH_SEED; i++) {
@@ -84,18 +80,18 @@ void bootloader() {
   secret_key_t device_secret_signing_key;
   create_secret_signing_key( &device_key_seed, &device_secret_signing_key);
 
-  if ( !boot_image_header.device_public_key_present ) {
-    compute_public_signing_key( &device_secret_signing_key, &(boot_image_header.device_public_key) );
-    boot_image_header.device_public_key_present = true;
+  if ( !boot_image_header->device_public_key_present ) {
+    compute_public_signing_key( &device_secret_signing_key, &(boot_image_header->device_public_key) );
+    boot_image_header->device_public_key_present = true;
   }
 
   // 4). Seed a KDF with H(device secret, measurement) to (re)compute the SW's signing key
-  create_secret_signing_key(&software_key_seed, &(boot_image_header.software_secret_key) );
+  create_secret_signing_key(&software_key_seed, &(boot_image_header->software_secret_key) );
 
   // If the measured software's public key is not marked as present, (re)derive it
-  if ( !boot_image_header.software_public_key_present ) {
-    compute_public_signing_key( &(boot_image_header.software_secret_key), &(boot_image_header.software_public_key) );
-    boot_image_header.software_public_key_present = true;
+  if ( !boot_image_header->software_public_key_present ) {
+    compute_public_signing_key( &(boot_image_header->software_secret_key), &(boot_image_header->software_public_key) );
+    boot_image_header->software_public_key_present = true;
   }
 
   // 5). Endorse the measured software by signing H(PK_SW, measurement) with SK_D
@@ -103,18 +99,18 @@ void bootloader() {
   hash_t software_digest;
   hash_init(&software_digest_context);
   hash_extend(&software_digest_context,
-    &(boot_image_header.software_public_key),
-    sizeof(boot_image_header.software_public_key) );
+    &(boot_image_header->software_public_key),
+    sizeof(boot_image_header->software_public_key) );
   hash_extend(&software_digest_context,
-    &(boot_image_header.software_measurement),
-    sizeof(boot_image_header.software_measurement));
+    &(boot_image_header->software_measurement),
+    sizeof(boot_image_header->software_measurement));
   hash_finalize(&software_digest_context, &software_digest);
 
   sign( &software_digest,
     sizeof(software_digest),
-    &(boot_image_header.device_public_key),
+    &(boot_image_header->device_public_key),
     &device_secret_signing_key,
-    &(boot_image_header.software_signature) );
+    &(boot_image_header->software_signature) );
 
   // ASM postamble cleans sensitive state, wakes all other cores, and boots software
   return;
